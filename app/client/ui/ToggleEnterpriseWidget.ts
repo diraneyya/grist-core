@@ -129,12 +129,12 @@ export class ToggleEnterpriseWidget extends Disposable {
   private _trialCopy() {
     return [
       cssParagraph(
-        dom("b", t("You are currently trialing Grist Enterprise.")),
+        dom("b", t("You are currently trialing Full Grist.")),
       ),
       cssParagraph(
-        markdown(t(`An activation key is used to run Grist Enterprise after a trial period
+        markdown(t(`An activation key is used to run Full Grist after a trial period
 of 30 days has expired. Get an activation key by [contacting us]({{contactLink}}) today. You do
-not need an activation key to run Grist Core.
+not need an activation key to run Grist Community Edition.
 
 Learn more in our [Help Center]({{helpCenter}}).`, {
           contactLink: commonUrls.contact,
@@ -200,7 +200,7 @@ Learn more in our [Help Center]({{helpCenter}}).`, {
         dom.autoDispose(owner),
         cssRow(
           cssLabel(t("Plan name") + ":"),
-          dom("div", dom.text("Grist Enterprise")),
+          dom("div", dom.text("Full Grist")),
           testId("plan-name"),
         ),
         dom.maybe(expireAt, date => [
@@ -260,7 +260,7 @@ Learn more in our [Help Center]({{helpCenter}}).`, {
           testId("expired-info"),
           dom.domComputed(graceText, txt => cssParagraph(
             markdown((txt ? txt + " " : "") + t(
-              `To continue using Grist Enterprise, you need to
+              `To continue using Full Grist, you need to
                   [contact us]({{signupLink}}) to get your activation key.`, {
                 signupLink: commonUrls.contact,
               })),
@@ -277,7 +277,7 @@ Learn more in our [Help Center]({{helpCenter}}).`, {
       cssParagraph(
         enterpriseNotEnabledCopy(),
       ),
-      cssOptInButton(t("Enable Grist Enterprise"),
+      cssOptInButton(t("Enable Full Grist"),
         dom.on("click", () => this._isEnterpriseEdition.set(true)),
       ),
     ];
@@ -307,8 +307,8 @@ Learn more in our [Help Center]({{helpCenter}}).`, {
       dom.maybe(trialExpiredLocal, expireAt => [
         cssParagraph(
           markdown(t(
-            `Your trial period has expired on **{{expireAt}}**. To continue using Grist Enterprise, you need to
-[sign up for Grist Enterprise]({{signupLink}}) and paste your activation key below.`, {
+            `Your trial period has expired on **{{expireAt}}**. To continue using Full Grist, you need to
+[sign up for Full Grist]({{signupLink}}) and paste your activation key below.`, {
               signupLink: commonUrls.plans,
               expireAt,
             })),
@@ -317,8 +317,8 @@ Learn more in our [Help Center]({{helpCenter}}).`, {
       ]),
       dom.maybe(not(trialExpired), () => [
         cssParagraph(
-          markdown(t(`An active subscription is required to continue using Grist Enterprise. You can
-you activate your subscription by [signing up for Grist Enterprise ]({{signupLink}}) and pasting your
+          markdown(t(`An active subscription is required to continue using Full Grist. You can
+you activate your subscription by [signing up for Full Grist ]({{signupLink}}) and pasting your
 activation key below.`, {
             signupLink: commonUrls.plans,
           })),
@@ -344,10 +344,10 @@ activation key below.`, {
 function enterpriseNotEnabledCopy() {
   return [
     cssParagraph(
-      markdown(t(`An activation key is used to run Grist Enterprise after a trial period
+      markdown(t(`An activation key is used to run Full Grist after a trial period
         of 30 days has expired. Get an activation key by [signing up for Grist
         Enterprise]({{signupLink}}). You do not need an activation key to run
-        Grist Core.`, { signupLink: commonUrls.plans })),
+        Grist Community Edition.`, { signupLink: commonUrls.plans })),
     ),
     learnMoreLink(),
   ];

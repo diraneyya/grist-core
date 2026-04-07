@@ -1,15 +1,31 @@
 import { makeT } from "app/client/lib/localization";
-import { cssFadeUp, cssFadeUpGristLogo, cssFadeUpHeading, cssFadeUpSubHeading } from "app/client/ui/AdminPanelCss";
+import { reportError } from "app/client/models/AppModel";
+import {
+  cssFadeUp,
+  cssFadeUpGristLogo,
+  cssFadeUpHeading,
+  cssFadeUpSubHeading,
+} from "app/client/ui/AdminPanelCss";
+import { BaseUrlSection } from "app/client/ui/BaseUrlSection";
+import { EditionSection } from "app/client/ui/EditionSection";
+import { isMockMode } from "app/client/ui/MockupState";
+import { PendingChangesManager } from "app/client/ui/PendingChanges";
+import { bigPrimaryButton } from "app/client/ui2018/buttons";
+import { theme } from "app/client/ui2018/cssVars";
+import { icon } from "app/client/ui2018/icons";
 import { Stepper } from "app/client/ui2018/Stepper";
 import { tokens } from "app/common/ThemePrefs";
 
-import { Disposable, dom, DomContents, observable, Observable, styled } from "grainjs";
+import { Computed, Disposable, dom, DomContents, makeTestId, observable, Observable, styled } from "grainjs";
 
 const t = makeT("QuickSetup");
+const testId = makeTestId("test-quick-setup-");
 
 interface Step {
   completed: Observable<boolean>;
   label: string;
+  /** When true, step content card has no border or padding. */
+  plain?: boolean;
   buildDom(): DomContents;
 }
 
@@ -19,7 +35,7 @@ export class QuickSetup extends Disposable {
     {
       label: t("Server"),
       completed: observable(false),
-      buildDom: () => null,
+      buildDom: () => this._buildServerStep(),
     },
     {
       label: t("Sandboxing"),
@@ -51,14 +67,76 @@ export class QuickSetup extends Disposable {
     return cssMainContent(
       cssFadeUpGristLogo(),
       cssFadeUpHeading(t("Quick setup")),
-      cssFadeUpSubHeading(t("Configure Grist for your environment.")),
+      cssFadeUpSubHeading(
+        t("Configure Grist for your environment."),
+        !isMockMode() ? [" ", cssMockLink("mock",
+          dom.on("click", () => {
+            const url = new URL(window.location.href);
+            url.searchParams.set("mock", "true");
+            window.location.href = url.toString();
+          }),
+        )] : null,
+      ),
       cssStepper(
         dom.create(Stepper, { activeStep: this._activeStep, steps: this._steps }),
       ),
       dom.domComputed(this._activeStep, i => cssStepContent(
+        cssStepContent.cls("-plain", Boolean(this._steps[i].plain)),
         this._steps[i].buildDom(),
       )),
     );
+  }
+
+  private _buildServerStep(): DomContents {
+    return dom.create((owner) => {
+      const baseUrl = BaseUrlSection.create(owner, {});
+      const edition = EditionSection.create(owner, {});
+      const pending = PendingChangesManager.create(owner);
+      pending.addSection(baseUrl);
+      pending.addSection(edition);
+      const canProceed = Computed.create(owner, use =>
+        use(baseUrl.canProceed) && use(edition.canProceed),
+      );
+      return dom("div",
+        cssStepHeading(
+          cssStepHeadingIcon(icon("Home")),
+          t("Server"),
+        ),
+        cssStepDescription(
+          t("Set your server's base URL and choose which edition of Grist to run."),
+        ),
+        cssStepSection(
+          cssStepSectionTitle(t("Base URL")),
+          baseUrl.buildWizardDom(),
+        ),
+        cssStepSection(
+          cssStepSectionTitle(t("Edition")),
+          edition.buildWizardDom(),
+        ),
+        cssContinueRow(
+          bigPrimaryButton(
+            dom.text((use) => {
+              const urlOk = use(baseUrl.canProceed);
+              const edOk = use(edition.canProceed);
+              if (!urlOk && !edOk) { return t("Confirm base URL and edition to continue"); }
+              if (!urlOk) { return t("Confirm base URL to continue"); }
+              if (!edOk) { return t("Confirm edition to continue"); }
+              return use(pending.hasPendingChanges) ? t("Apply and Continue") : t("Continue");
+            }),
+            dom.boolAttr("disabled", use => !use(canProceed) || use(pending.isApplying)),
+            dom.on("click", async () => {
+              try {
+                await pending.applyAll();
+                this._activeStep.set(this._activeStep.get() + 1);
+              } catch (err) {
+                reportError(err as Error);
+              }
+            }),
+            testId("server-continue"),
+          ),
+        ),
+      );
+    });
   }
 }
 
@@ -84,4 +162,55 @@ const cssStepContent = styled("div", `
   margin: 24px auto;
   max-width: 520px;
   padding: 28px 32px;
+  &-plain {
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    background: none;
+  }
+`);
+
+const cssStepHeading = styled("div", `
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 4px;
+`);
+
+const cssStepHeadingIcon = styled("div", `
+  display: flex;
+  --icon-color: ${theme.controlPrimaryBg};
+`);
+
+const cssStepDescription = styled("div", `
+  color: ${tokens.secondary};
+  font-size: 14px;
+  line-height: 1.5;
+  margin-bottom: 20px;
+`);
+
+const cssStepSection = styled("div", `
+  margin-bottom: 24px;
+`);
+
+const cssStepSectionTitle = styled("h3", `
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+`);
+
+const cssContinueRow = styled("div", `
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 24px;
+`);
+
+const cssMockLink = styled("span", `
+  color: ${tokens.secondary};
+  cursor: pointer;
+  font-size: 12px;
+  text-decoration: underline;
+  &:hover { color: ${tokens.body}; }
 `);

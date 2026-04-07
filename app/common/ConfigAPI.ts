@@ -18,6 +18,11 @@ export interface AuthProvider {
   metadata?: Record<string, any>; // Additional provide metadata.
 }
 
+export interface ServerConfig {
+  APP_HOME_URL: string | null;
+  isManuallySet: boolean;
+}
+
 /**
  * An API for accessing the internal Grist configuration, stored in
  * config.json.
@@ -86,6 +91,23 @@ export class ConfigAPI extends BaseAPI {
     const url = new URL(`${this._url}/api/config/auth-providers/config`);
     url.searchParams.append("provider", provider);
     return await this.requestJson(url.toString(), { method: "GET" });
+  }
+
+  /**
+   * Fetches the current server configuration (APP_HOME_URL).
+   */
+  public async getServerConfig(): Promise<ServerConfig> {
+    return await this.requestJson(`${this._url}/api/config/server`, { method: "GET" });
+  }
+
+  /**
+   * Saves the server configuration (APP_HOME_URL).
+   */
+  public async saveServerConfig(config: { APP_HOME_URL: string | null }): Promise<void> {
+    await this.request(`${this._url}/api/config/server`, {
+      method: "POST",
+      body: JSON.stringify(config),
+    });
   }
 
   private get _url(): string {

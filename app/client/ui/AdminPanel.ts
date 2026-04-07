@@ -8,14 +8,16 @@ import { AuditLogsModel, AuditLogsModelImpl } from "app/client/models/AuditLogsM
 import { urlState } from "app/client/models/gristUrlState";
 import { AccountWidget } from "app/client/ui/AccountWidget";
 import { cssEmail, cssUserInfo, cssUserName } from "app/client/ui/AccountWidgetCss";
-import { showEnterpriseToggle } from "app/client/ui/ActivationPage";
 import { buildAdminData } from "app/client/ui/AdminControls";
 import { buildAdminLeftPanel, getPageNames } from "app/client/ui/AdminLeftPanel";
 import {
   AdminPanelControls,
   AdminSection,
   AdminSectionItem,
+  cssDangerText,
+  cssErrorText,
   cssFlexSpace,
+  cssHappyText,
   cssIconWrapper as cssWellIcon,
   cssSection,
   cssSectionTitle,
@@ -23,19 +25,23 @@ import {
   cssWell,
   cssWellContent,
   cssWellTitle,
+  focusAdminItem,
   HidableToggle,
 } from "app/client/ui/AdminPanelCss";
 import { getAdminPanelName } from "app/client/ui/AdminPanelName";
 import { App } from "app/client/ui/App";
 import { AuditLogStreamingConfig, getDestinationDisplayName } from "app/client/ui/AuditLogStreamingConfig";
 import { AuthenticationSection } from "app/client/ui/AuthenticationSection";
+import { BaseUrlSection } from "app/client/ui/BaseUrlSection";
 import { BootKeyStatus } from "app/client/ui/BootKeyStatus";
 import { InstallConfigsAPI } from "app/client/ui/ConfigsAPI";
+import { EditionSection } from "app/client/ui/EditionSection";
+import { maybeBuildMockPanel } from "app/client/ui/MockupPanel";
 import { pagePanels } from "app/client/ui/PagePanels";
+import { PendingChangesManager } from "app/client/ui/PendingChanges";
 import { QuickSetup } from "app/client/ui/QuickSetup";
 import { ServiceStatus } from "app/client/ui/ServiceStatus";
 import { SupportGristPage } from "app/client/ui/SupportGristPage";
-import { ToggleEnterpriseWidget } from "app/client/ui/ToggleEnterpriseWidget";
 import { createTopBarHome } from "app/client/ui/TopBar";
 import { createUserImage } from "app/client/ui/UserImage";
 import { cssBreadcrumbs, separator } from "app/client/ui2018/breadcrumbs";
@@ -62,6 +68,7 @@ import {
   Disposable,
   dom,
   IDisposable,
+  keyframes,
   MultiHolder,
   Observable,
   styled,
@@ -75,8 +82,38 @@ const t = makeT("AdminPanel");
 // still far away from the max at Number.MAX_SAFE_INTEGER
 const STALE_VERSION_CHECK_TIME_IN_MS = 14 * 24 * 60 * 60 * 1000;
 
+/**
+ * Shared restart-banner state so the left-panel "Apply changes" entry can
+ * reflect banner visibility and trigger a scroll-into-view + flash.
+ */
+export interface RestartBannerController {
+  isVisible: Observable<boolean>;
+  /** Registered by the banner's DOM to receive focus() calls. */
+  bannerElem: { current: HTMLElement | null };
+  /** Scroll the banner into view and briefly highlight it. */
+  focus(): void;
+}
+
+function createRestartBannerController(owner: Disposable): RestartBannerController {
+  const bannerElem: { current: HTMLElement | null } = { current: null };
+  return {
+    isVisible: Observable.create(owner, false),
+    bannerElem,
+    focus() {
+      const el = bannerElem.current;
+      if (!el) { return; }
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      el.classList.remove("-flash");
+      // Force reflow so the animation restarts if it's already set.
+      void el.offsetWidth;
+      el.classList.add("-flash");
+    },
+  };
+}
+
 export class AdminPanel extends Disposable {
   private _page = Computed.create<AdminPanelPage>(this, use => use(urlState().state).adminPanel || "admin");
+  private _restartBanner = createRestartBannerController(this);
 
   constructor(private _appModel: AppModel, private _appObj: App) {
     super();
@@ -84,7 +121,7 @@ export class AdminPanel extends Disposable {
   }
 
   public buildDom() {
-    const leftPanel = buildAdminLeftPanel(this, this._appModel);
+    const leftPanel = buildAdminLeftPanel(this, this._appModel, this._restartBanner);
 
     // When left panel is fully hidden, hide breadcrumbs and extra buttons so top bar is mostly empty.
     const width = leftPanel.collapsedWidth;
@@ -136,7 +173,7 @@ export class AdminPanel extends Disposable {
 
       dom.domComputed(this._page, (page) => {
         if (page === "admin") {
-          return dom.create(AdminInstallationPanel, this._appModel);
+          return dom.create(AdminInstallationPanel, this._appModel, this._restartBanner);
         } else if (page === "setup") {
           return dom.create(QuickSetup);
         } else {
@@ -146,6 +183,11 @@ export class AdminPanel extends Disposable {
 
       cssPageContainer.cls("-admin-pages", use => use(this._page) !== "admin"),
 
+      maybeBuildMockPanel(
+        BaseUrlSection.buildMockButtons(),
+        EditionSection.buildMockButtons(),
+      ),
+
       testId("admin-panel"),
     );
   }
@@ -153,17 +195,48 @@ export class AdminPanel extends Disposable {
 
 class AdminInstallationPanel extends Disposable implements AdminPanelControls {
   public needsRestart = Observable.create(this, false);
+  // Sticky flag: true after the user has applied changes without a restart
+  // in an environment that doesn't support auto-restart. Keeps the manual
+  // restart reminder on screen until the user reloads the page.
+  private _awaitingManualRestart = Observable.create<boolean>(this, false);
   private _supportsRestart = !!getAdminConfig().runningUnderSupervisor;
-  private _toggleEnterprise = ToggleEnterpriseWidget.create(this, this._appModel.notifier);
+  private _baseUrlSection = BaseUrlSection.create(this, { controls: this });
+  private _editionSection = EditionSection.create(this, {
+    controls: this,
+    notifier: this._appModel.notifier,
+  });
+
+  private _pending = PendingChangesManager.create(this);
+
   private _checks: AdminChecks;
   private readonly _installAPI: InstallAPI = new InstallAPIImpl(getHomeUrl());
   private readonly _configAPI: ConfigAPI = new ConfigAPI(getHomeUrl());
   private _authCheck: Observable<AdminCheckRequest | undefined>;
   private _loginProvider: Observable<string | undefined>;
 
-  constructor(private _appModel: AppModel) {
+  // Banner visibility: shown when there are pending changes to apply OR
+  // when the user has already applied changes and still owes us a manual
+  // restart.
+  private _showRestartBanner = Computed.create(this, use =>
+    use(this.needsRestart) || use(this._awaitingManualRestart),
+  );
+
+  constructor(private _appModel: AppModel, private _restartBanner: RestartBannerController) {
     super();
     this._checks = new AdminChecks(this, this._installAPI);
+    this._pending.addSection(this._baseUrlSection);
+    this._pending.addSection(this._editionSection);
+
+    // Restart banner appears when a section's pending changes require one.
+    // Sections without needsRestart are saved inline without needing the banner.
+    this.autoDispose(this._pending.needsRestart.addListener(v => this.needsRestart.set(v)));
+
+    // Mirror visibility into the shared controller so the left-panel entry
+    // appears/disappears with the banner.
+    this.autoDispose(this._showRestartBanner.addListener(v => this._restartBanner.isVisible.set(v)));
+    // Initial sync.
+    this._restartBanner.isVisible.set(this._showRestartBanner.get());
+
     this._authCheck = Computed.create(this, (use) => {
       return this._checks.requestCheckById(use, "authentication");
     });
@@ -220,8 +293,27 @@ class AdminInstallationPanel extends Disposable implements AdminPanelControls {
   }
 
   private async _performRestart() {
-    await this._configAPI.restartServer();
+    // Apply any restart-requiring pending changes; PendingChangesManager
+    // triggers the server restart and waits for it. If no section needs a
+    // restart but the banner was shown for another reason (e.g. an
+    // AuthenticationSection change saved directly), restart now.
+    if (this._pending.needsRestart.get()) {
+      await this._pending.applyAll();
+    } else {
+      await this._configAPI.restartServer();
+    }
     await reloadSafe();
+  }
+
+  private async _applyWithoutRestart() {
+    try {
+      await spinnerModal(t("Saving..."), this._pending.applyWithoutRestart());
+      // Pending changes are cleared, but the user still needs to manually
+      // restart — keep the banner on screen with a follow-up message.
+      this._awaitingManualRestart.set(true);
+    } catch (err) {
+      reportError(err as Error);
+    }
   }
 
   /**
@@ -250,10 +342,29 @@ Please log in as an administrator.`)),
     const supportGrist = SupportGristPage.create(this, this._appModel);
 
     return [
-      dom.maybe(this.needsRestart, () => [
-        cssSection(
+      cssRestartBannerShell(
+        cssRestartBannerShell.cls("-open", this._showRestartBanner),
+        (elem) => { this._restartBanner.bannerElem.current = elem; },
+        cssRestartBanner(
           cssSectionTitle(t("Restart Grist")),
-          dom("p", t("Restart Grist to apply pending changes.")),
+          dom.domComputed(this._awaitingManualRestart, waiting =>
+            dom("p", waiting ?
+              t("Changes have been saved. Restart Grist to apply them.") :
+              t("Restart Grist to apply pending changes.")),
+          ),
+          // List of pending changes, refreshed whenever hasPendingChanges flips.
+          dom.domComputed(this._pending.hasPendingChanges, () => {
+            const changes = this._pending.describeChanges();
+            if (changes.length === 0) { return null; }
+            return cssPendingChangesList(
+              changes.map(c => dom("li",
+                cssPendingChangeLabel(c.label + ":"),
+                " ",
+                dom("span", c.value),
+              )),
+              testId("admin-panel-pending-changes"),
+            );
+          }),
           cssWell(
             cssWell.cls("-warning"),
             cssWellIcon(icon("Warning")),
@@ -267,6 +378,17 @@ Please log in as an administrator.`)),
                   t("Please restart Grist manually."),
                   testId("admin-panel-restart-unsupported-warning"),
                 ),
+                // Allow persisting pending changes to the DB so a manual
+                // restart picks them up.
+                dom.maybe(this._pending.hasPendingChanges, () =>
+                  dom("p",
+                    basicButton(
+                      t("Apply changes (manual restart required)"),
+                      dom.on("click", () => this._applyWithoutRestart()),
+                      testId("admin-panel-apply-no-restart"),
+                    ),
+                  ),
+                ),
               ),
             ),
             dom.hide(this._supportsRestart),
@@ -278,7 +400,7 @@ Please log in as an administrator.`)),
             dom.show(this._supportsRestart),
           ),
         ),
-      ]),
+      ),
       dom.create(AdminSection, t("Support Grist"), [
         dom.create(AdminSectionItem, {
           id: "telemetry",
@@ -299,7 +421,21 @@ Please log in as an administrator.`)),
           expandedContent: supportGrist.buildSponsorshipSection(),
         }),
       ]),
-      dom.create(AdminSection, t("Maintenance"), [
+      dom.create(AdminSection, t("Server"), [
+        dom.create(AdminSectionItem, {
+          id: "base-url",
+          name: t("Base URL"),
+          description: t("The URL where users and integrations reach this Grist server"),
+          value: this._baseUrlSection.buildStatusDisplay(),
+          expandedContent: this._baseUrlSection.buildDom(),
+        }),
+        dom.create(AdminSectionItem, {
+          id: "edition",
+          name: t("Edition"),
+          description: EditionSection.description(),
+          value: this._editionSection.buildStatusDisplay(),
+          expandedContent: this._editionSection.buildDom(),
+        }),
         dom.create(AdminSectionItem, {
           id: "service-status",
           name: t("Service status"),
@@ -375,28 +511,56 @@ Please log in as an administrator.`)),
     ];
   }
 
+  // Stub for users following older documentation that still refers to an
+  // "Enterprise" item in this section. The real controls live in the new
+  // "Server → Edition" item above. The toggle mirrors the real edition
+  // state but intercepts clicks and bounces the user to Edition instead.
   private _maybeAddEnterpriseToggle() {
-    if (!showEnterpriseToggle()) {
-      return null;
-    }
+    const enterpriseObs = this._editionSection.getEnterpriseToggleObservable();
 
-    let makeToggle = () => dom.create(
-      HidableToggle,
-      this._toggleEnterprise.getEnterpriseToggleObservable(),
-      { labelId: "admin-panel-item-description-enterprise" },
-    );
+    const interceptClick = (ev: Event) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      focusAdminItem("edition");
+    };
 
-    // If the enterprise edition is forced, we don't show the toggle.
-    if (getGristConfig().forceEnableEnterprise) {
-      makeToggle = () => cssValueLabel(cssHappyText(t("On")));
-    }
+    const makeToggle = () => {
+      if (getGristConfig().forceEnableEnterprise) {
+        return cssValueLabel(cssHappyText(t("On")));
+      }
+      if (!enterpriseObs) {
+        return cssValueLabel(t("moved"));
+      }
+      // Wrap the toggle in a container that intercepts clicks at the
+      // capture phase so the underlying observable never changes; the
+      // user is redirected to the real Edition item instead.
+      return dom("span",
+        dom.on("click", interceptClick, { useCapture: true }),
+        dom.create(HidableToggle, enterpriseObs, {
+          labelId: "admin-panel-item-description-enterprise",
+        }),
+      );
+    };
 
     return dom.create(AdminSectionItem, {
       id: "enterprise",
       name: t("Enterprise"),
-      description: t("Enable Grist Enterprise"),
+      description: EditionSection.description(),
       value: makeToggle(),
-      expandedContent: this._toggleEnterprise.buildEnterpriseSection(),
+      expandedContent: dom("div",
+        dom("p", t(
+          "What used to be called \"Grist Enterprise\" is now called \"Full Grist\".",
+        )),
+        dom("p",
+          t("Its controls have moved to "),
+          cssLink(t("Server → Edition"),
+            dom.on("click", (ev) => { ev.preventDefault(); focusAdminItem("edition"); }),
+            { href: "#edition" },
+          ),
+          t(" above."),
+        ),
+        testId("admin-panel-enterprise-stub"),
+      ),
     });
   }
 
@@ -1033,6 +1197,45 @@ const cssStatus = styled("div", `
   padding: 5px;
 `);
 
+// Smooth reveal of the restart banner. We keep the banner always in the
+// DOM and animate an outer grid shell's grid-template-rows from 0fr to 1fr.
+// This makes the content below slide down smoothly instead of jumping.
+const cssRestartBannerFlash = keyframes(`
+  0%, 100% { box-shadow: none; }
+  30%      { box-shadow: 0 0 0 3px ${theme.controlFg}; }
+`);
+
+const cssRestartBannerShell = styled("div", `
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.4s ease-out, opacity 0.4s ease-out;
+  opacity: 0;
+  & > * { overflow: hidden; }
+  &-open {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+  &.-flash > * {
+    animation: ${cssRestartBannerFlash} 1s ease-out;
+    border-radius: 4px;
+  }
+`);
+
+const cssRestartBanner = styled(cssSection, ``);
+
+const cssPendingChangesList = styled("ul", `
+  margin: 0 0 12px 0;
+  padding-left: 20px;
+  color: ${theme.text};
+  & > li {
+    margin-bottom: 4px;
+  }
+`);
+
+const cssPendingChangeLabel = styled("span", `
+  font-weight: 600;
+`);
+
 const cssPageContainer = styled("div", `
   flex: 1;
   display: flex;
@@ -1076,18 +1279,6 @@ const cssCheckNowButton = styled(basicButton, `
 
 const cssGrayed = styled("span", `
   color: ${theme.lightText};
-`);
-
-const cssErrorText = styled("span", `
-  color: ${theme.errorText};
-`);
-
-const cssDangerText = styled("div", `
-  color: ${theme.dangerText};
-`);
-
-const cssHappyText = styled("span", `
-  color: ${theme.controlFg};
 `);
 
 const cssLabel = styled("div", `

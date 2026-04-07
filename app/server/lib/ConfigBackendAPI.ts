@@ -95,6 +95,42 @@ export class ConfigBackendAPI {
       });
     }));
 
+    // GET /api/config/server
+    // Returns the current APP_HOME_URL and whether it was manually set.
+    app.get("/api/config/server", requireInstallAdmin, expressWrap(async (req, resp) => {
+      const activation = await this._activations.current();
+      const envVarsFromDb = activation.prefs?.envVars || {};
+      const fromDb = envVarsFromDb.APP_HOME_URL as string | undefined;
+      const fromEnv = process.env.APP_HOME_URL;
+      return sendOkReply(req, resp, {
+        APP_HOME_URL: fromDb || fromEnv || null,
+        isManuallySet: Boolean(fromDb || fromEnv),
+      });
+    }));
+
+    // POST /api/config/server
+    // Persists APP_HOME_URL to activation prefs. A server restart is
+    // required for the new value to take effect — auth middleware, OIDC
+    // callback URLs, domain routing, etc. read APP_HOME_URL at startup.
+    // Pass APP_HOME_URL: null to clear the stored value.
+    app.post("/api/config/server", requireInstallAdmin, expressWrap(async (req, resp) => {
+      const url = req.body?.APP_HOME_URL;
+      if (url === null) {
+        await this._activations.updateEnvVars({ APP_HOME_URL: null });
+        return sendOkReply(req, resp, { msg: "ok" });
+      }
+      if (typeof url !== "string" || !url) {
+        throw new ApiError("APP_HOME_URL is required", 400);
+      }
+      try {
+        new URL(url);
+      } catch {
+        throw new ApiError("Invalid URL format", 400);
+      }
+      await this._activations.updateEnvVars({ APP_HOME_URL: url });
+      return sendOkReply(req, resp, { msg: "ok" });
+    }));
+
     app.get("/api/config/:key", requireInstallAdmin, expressWrap((req, resp) => {
       log.debug("config: requesting configuration", req.params);
 
