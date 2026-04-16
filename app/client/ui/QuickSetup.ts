@@ -29,7 +29,7 @@ export class QuickSetup extends Disposable {
       steps: [
         {
           label: t("Server"),
-          buildDom: (activeStep) => dom("div",
+          buildDom: activeStep => dom("div",
             dom("p", t("Server settings...")),
             cssContinueRow(
               bigPrimaryButton(t("Continue"),
@@ -41,7 +41,7 @@ export class QuickSetup extends Disposable {
         {
           label: t("Sandboxing"),
           plain: true,
-          buildDom: (activeStep) => this._buildSandboxingStep(activeStep),
+          buildDom: activeStep => this._buildSandboxingStep(activeStep),
         },
         {
           label: t("Authentication"),
@@ -64,12 +64,12 @@ export class QuickSetup extends Disposable {
     const selected = Observable.create<string | null>(null, null);
     const error = Observable.create<string>(null, "");
 
-    this._configAPI.getSandboxingStatus().then(s => {
+    this._configAPI.getSandboxingStatus().then((s) => {
       if (this.isDisposed()) { return; }
       status.set(s);
       // Always select the first option — backend sorts best-available first.
       selected.set(s.available[0]?.key ?? "unsandboxed");
-    }).catch(e => {
+    }).catch((e) => {
       if (this.isDisposed()) { return; }
       error.set(String(e));
     });
@@ -79,7 +79,7 @@ export class QuickSetup extends Disposable {
       dom.autoDispose(selected),
       dom.autoDispose(error),
       testId("sandboxing"),
-      dom.maybe(error, (err) => cssError(err)),
+      dom.maybe(error, err => cssError(err)),
       dom.domComputed(status, (s) => {
         if (!s) { return cssLoading(loadingSpinner(), t("Detecting sandbox options…")); }
         return this._buildSandboxingContent(s, selected, activeStep, error);
@@ -93,7 +93,7 @@ export class QuickSetup extends Disposable {
     activeStep: Observable<number>,
     error: Observable<string>,
   ): DomContents {
-    const {available, recommended, isSelectedByEnv} = status;
+    const { available, recommended, isSelectedByEnv } = status;
 
     // Hero is always the first option from the backend list; the rest go into "Other options".
     const heroOption = available[0];
@@ -105,19 +105,19 @@ export class QuickSetup extends Disposable {
     const badgesFor = (opt: SandboxOption): BadgeConfig[] => {
       const badges: BadgeConfig[] = [];
       if (opt.isActive && this._mode === "reconfigure") {
-        badges.push({label: t("Active"), variant: "primary"});
+        badges.push({ label: t("Active"), variant: "primary" });
       }
       if (!opt.available) {
-        badges.push({label: t("Not available"), variant: "error"});
+        badges.push({ label: t("Not available"), variant: "error" });
         return badges; // Notice quick returns here.
       } else if (opt.functional === false) {
-        badges.push({label: t("Not working"), variant: "error"});
+        badges.push({ label: t("Not working"), variant: "error" });
         return badges;
       } else if (!opt.effective) {
-        badges.push({label: t("Not recommended"), variant: "warning"});
+        badges.push({ label: t("Not recommended"), variant: "warning" });
         return badges;
       } else {
-        badges.push({label: t("Ready"), variant: "primary"});
+        badges.push({ label: t("Ready"), variant: "primary" });
         return badges;
       }
     };
@@ -142,7 +142,7 @@ export class QuickSetup extends Disposable {
       ) : null,
 
       // Hero card — first option from the backend.
-      buildHeroCard( {
+      buildHeroCard({
         indicator: (use: UseCB) => use(selected) === heroKey ? (heroKey === recommended ? "success" : "warning") : "",
         radio: makeRadio(heroKey, !canSelect(heroOption)),
         header: heroOption.label,
@@ -153,28 +153,28 @@ export class QuickSetup extends Disposable {
       }),
 
       // Other options — expanded by default when hero is not the selected option.
-      otherOptions.length > 0
-        ? buildCardList( {
-            header: t("Other options"),
-            collapsible: true,
-            initiallyCollapsed: selected.get() === heroKey,
-            items: otherOptions.map(opt =>
-              buildItemCard({
-                indicator: (use: UseCB) => {
-                  if (use(selected) !== opt.key) { return undefined; }
-                  return opt.key === recommended ? "active" : "warning";
-                },
-                radio: makeRadio(opt.key, !canSelect(opt) || isSelectedByEnv),
-                header: opt.label,
-                tags: opt.key === recommended ? [{ label: t("Recommended") }] : [],
-                badges: badgesFor(opt),
-                text: sandboxDescription(opt.key),
-                info: !opt.available ? opt.unavailableReason : undefined,
-                error: opt.functional === false ? (opt.testError ?? "") : undefined,
-              }),
-            ),
-          })
-        : null,
+      otherOptions.length > 0 ?
+        buildCardList({
+          header: t("Other options"),
+          collapsible: true,
+          initiallyCollapsed: selected.get() === heroKey,
+          items: otherOptions.map(opt =>
+            buildItemCard({
+              indicator: (use: UseCB) => {
+                if (use(selected) !== opt.key) { return undefined; }
+                return opt.key === recommended ? "active" : "warning";
+              },
+              radio: makeRadio(opt.key, !canSelect(opt) || isSelectedByEnv),
+              header: opt.label,
+              tags: opt.key === recommended ? [{ label: t("Recommended") }] : [],
+              badges: badgesFor(opt),
+              text: sandboxDescription(opt.key),
+              info: !opt.available ? opt.unavailableReason : undefined,
+              error: opt.functional === false ? (opt.testError ?? "") : undefined,
+            }),
+          ),
+        }) :
+        null,
 
       cssContinueRow(
         bigPrimaryButton(t("Continue"),

@@ -77,13 +77,13 @@ export function buildHeroCard(props: {
       props.checkbox ?? null,
       props.buttons ? cssHeroControlButtons(props.buttons) : null,
     ) : null,
-    hasFooter ? cssHeroFooter(props.footer!) : null,
+    hasFooter ? cssHeroFooter(props.footer) : null,
   );
 
   return cssHeroCard(
-    dom.cls(use => {
+    dom.cls((use) => {
       const v = useBindable(use, props.indicator);
-      return v ? `${cssHeroCard.className}-${v}` : '';
+      return v ? `${cssHeroCard.className}-${v}` : "";
     }),
     testId("hero"),
     props.radio ? cssCardWithRadio(
@@ -146,19 +146,19 @@ export function buildItemCard(props: {
     ),
 
     props.text ? cssItemText(dom.text(props.text)) : null,
-    props.error ? dom.maybe(props.error, (e) => cssErrorMessage(e)) : null,
+    props.error ? dom.maybe(props.error, e => cssErrorMessage(e)) : null,
     props.info ? cssItemInfo(dom.text(props.info)) : null,
   );
 
   return cssItemRow(
-    props.indicator != null
-      ? typeof props.indicator === "string"
-        ? (props.indicator ? cssItemRow.cls(`-border-${props.indicator}`) : null)
-        : dom.cls(use => {
-            const val = useBindable(use, props.indicator!);
-            return val ? `${cssItemRow.className}-border-${val}` : '';
-          })
-      : null,
+    props.indicator != null ?
+      typeof props.indicator === "string" ?
+        (props.indicator ? cssItemRow.cls(`-border-${props.indicator}`) : null) :
+        dom.cls((use) => {
+          const val = useBindable(use, props.indicator);
+          return val ? `${cssItemRow.className}-border-${val}` : "";
+        }) :
+      null,
     testId("item"),
     props.radio ? cssCardWithRadio(
       buildRadioInput(props.radio),
@@ -259,7 +259,6 @@ export interface ItemButtonConfig {
   disabled?: boolean;
 }
 
-
 export interface RadioConfig {
   /** Whether this radio is currently selected. */
   checked: BindableValue<boolean>;
@@ -270,8 +269,6 @@ export interface RadioConfig {
   /** When true, radio is disabled and the whole card is grayed out. */
   disabled?: BindableValue<boolean>;
 }
-
-
 
 // =========================================================================
 // Styled components

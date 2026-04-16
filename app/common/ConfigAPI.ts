@@ -134,8 +134,6 @@ export class ConfigAPI extends BaseAPI {
     });
   }
 
-
-
   private get _url(): string {
     return addCurrentOrgToPath(this._homeUrl);
   }

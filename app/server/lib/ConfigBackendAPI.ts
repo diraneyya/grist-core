@@ -183,7 +183,7 @@ export class ConfigBackendAPI {
     const testPromises = available
       .filter(o => o.available && o.effective)
       .map(async (o) => {
-        const result = await testSandboxFlavor(o.key).catch((e) => { /** should not happen */});
+        const result = await testSandboxFlavor(o.key).catch((e) => { /** should not happen */ });
         o.functional = result!.functional;
         o.testError = result!.error;
       });
@@ -203,7 +203,6 @@ export class ConfigBackendAPI {
     if (activeOption) {
       activeOption.isActive = true;
     }
-
 
     // Sort: best option first. Priority: functional+effective > functional > rest.
     // Note: functional means available (we checked that before).
@@ -228,7 +227,7 @@ export class ConfigBackendAPI {
 
     // process.env is never populated from DB envVars, so its presence
     // means the value was set outside our control and is immutable.
-    const isSelectedByEnv = currentConfigSource === "env"
+    const isSelectedByEnv = currentConfigSource === "env";
 
     // Explicitly configured = set via env var OR previously saved to DB.
     const isConfigured = !!currentConfigSource;

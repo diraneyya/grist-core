@@ -25,7 +25,7 @@ export const SandboxingStep = () => {
       { label: "Server", buildDom: () => dom("div", "Server settings...") },
       {
         label: "Sandboxing",
-        buildDom: (activeStep) => dom("div",
+        buildDom: activeStep => dom("div",
           dom("h3", cssStepTitle.cls(""),
             cssSandboxIcon("</>")),
           cssStepTitle("Sandboxing"),
@@ -33,7 +33,7 @@ export const SandboxingStep = () => {
             "Grist runs user formulas as Python code. Sandboxing isolates this execution to " +
             "protect your server. Without it, document formulas can access the full system.",
           ),
-          buildHeroCard( {
+          buildHeroCard({
             indicator: (use: any) => use(selected) === "gvisor" ? "success" : "pending",
             radio: makeRadio("gvisor"),
             header: "gVisor",
@@ -43,7 +43,7 @@ export const SandboxingStep = () => {
               "Each document's formulas run in their own isolated container, separated from " +
               "each other and the network.",
           }),
-          buildCardList( {
+          buildCardList({
             header: "Hide other options",
             collapsible: true,
             initiallyCollapsed: true,

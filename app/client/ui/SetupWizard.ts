@@ -11,7 +11,6 @@ import { BindableValue, Disposable, dom, DomContents, makeTestId, Observable, st
 
 const testId = makeTestId("test-setup-wizard-");
 
-
 /**
  * A multi-step setup wizard with a stepper bar and animated content cards.
   * ```
@@ -70,7 +69,7 @@ export class SetupWizard extends Disposable {
       cssStepper(
         dom.create(Stepper, { activeStep: this.activeStep, steps }),
       ),
-      dom.domComputed(this.activeStep, i => {
+      dom.domComputed(this.activeStep, (i) => {
         const step = steps[i];
         if (!step) { return null; }
         return cssStepContent(
@@ -84,7 +83,6 @@ export class SetupWizard extends Disposable {
   }
 }
 
-
 export interface WizardStep {
   label: string;
   /** When true, the step content card has no border, shadow, or padding. */
@@ -94,7 +92,6 @@ export interface WizardStep {
   /** Build the step content. Receives activeStep observable for navigation. */
   buildDom(activeStep: Observable<number>): DomContents;
 }
-
 
 const cssMainContent = styled("div", `
   margin: 0 auto;

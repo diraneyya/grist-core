@@ -670,20 +670,19 @@ export function getAvailableSandboxes(): SandboxOption[] {
   ];
 }
 
-
-function _checkPyodideAvailable(): {available: boolean; reason?: string} {
+function _checkPyodideAvailable(): { available: boolean; reason?: string } {
   try {
     const base = getUnpackedAppRoot();
     const scriptPath = path.resolve(base, "sandbox", "pyodide", "pipe.js");
     if (!fs.existsSync(scriptPath)) {
-      return {available: false, reason: "Pyodide runtime not installed"};
+      return { available: false, reason: "Pyodide runtime not installed" };
     }
     if (!checkPyodideDeno()) {
-      return {available: false, reason: "Deno binary not found (npm deno package not installed)"};
+      return { available: false, reason: "Deno binary not found (npm deno package not installed)" };
     }
-    return {available: true};
+    return { available: true };
   } catch (e) {
-    return {available: false, reason: String(e)};
+    return { available: false, reason: String(e) };
   }
 }
 
@@ -710,7 +709,7 @@ export async function testSandboxFlavor(flavor: string): Promise<SandboxTestResu
       preferredPythonVersion: "3",
     });
     const timeout = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Sandbox test timed out after 30s")), 30000).unref()
+      setTimeout(() => reject(new Error("Sandbox test timed out after 30s")), 30000).unref(),
     );
     const result = await Promise.race([sandbox.pyCall("get_version"), timeout]);
     if (typeof result !== "number") {
@@ -1272,7 +1271,7 @@ function getCommandArgsFromEnv() {
   };
 }
 
-export function getSandboxFlavor(): string|undefined {
+export function getSandboxFlavor(): string | undefined {
   return appSettings.section("sandbox").flag("flavor").readString({
     envVar: "GRIST_SANDBOX_FLAVOR",
     defaultValue: "unsandboxed",
@@ -1281,10 +1280,9 @@ export function getSandboxFlavor(): string|undefined {
 
 export function getSandboxFlavorSource() {
   return appSettings.section("sandbox").flag("flavor").read({
-    envVar: "GRIST_SANDBOX_FLAVOR"
+    envVar: "GRIST_SANDBOX_FLAVOR",
   }).describe().source;
 }
-
 
 /**
  * Create a sandbox. The defaultFlavorSpec is a guide to which sandbox

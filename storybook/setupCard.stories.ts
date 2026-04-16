@@ -2,11 +2,10 @@ import {
   BadgeVariant,
   buildCardList,
   buildHeroCard,
+  buildItemCard,
   HeroVariant,
   ItemBorderVariant,
-  buildItemCard,
 } from "app/client/ui/SetupCard";
-
 import { basicButton, textButton } from "app/client/ui2018/buttons";
 import { labeledSquareCheckbox } from "app/client/ui2018/checkbox";
 
@@ -51,31 +50,31 @@ export const HeroCardStory = {
   },
   render: (args: any) => {
     const checked = Observable.create(null, false);
-    return buildHeroCard( {
+    return buildHeroCard({
       indicator: args.indicator as HeroVariant,
       header: args.header,
       tags: args.tag ? [{ label: args.tag }] : [],
-      badges: args.badgeLabel
-        ? [{ label: args.badgeLabel, variant: args.badgeVariant as BadgeVariant }]
-        : [],
+      badges: args.badgeLabel ?
+        [{ label: args.badgeLabel, variant: args.badgeVariant as BadgeVariant }] :
+        [],
       text: args.text || undefined,
       error: args.error || undefined,
-      checkbox: args.showCheckbox
-        ? labeledSquareCheckbox(checked, args.checkboxLabel)
-        : undefined,
-      buttons: args.showButtons
-        ? [
-            basicButton(args.button1Label, dom.on("click", action("Button 1"))),
-            ...(args.button2Label ? [basicButton(args.button2Label, dom.on("click", action("Button 2")))] : []),
-          ]
-        : undefined,
+      checkbox: args.showCheckbox ?
+        labeledSquareCheckbox(checked, args.checkboxLabel) :
+        undefined,
+      buttons: args.showButtons ?
+        [
+          basicButton(args.button1Label, dom.on("click", action("Button 1"))),
+          ...(args.button2Label ? [basicButton(args.button2Label, dom.on("click", action("Button 2")))] : []),
+        ] :
+        undefined,
       footer: args.footerText ? [
         dom("span", args.footerText,
           args.footerBoldText ? dom("strong", args.footerBoldText) : null,
         ),
-        ...(args.footerActionLabel
-          ? [textButton(args.footerActionLabel, dom.on("click", action("Footer action")))]
-          : []),
+        ...(args.footerActionLabel ?
+          [textButton(args.footerActionLabel, dom.on("click", action("Footer action")))] :
+          []),
       ] : undefined,
     });
   },
@@ -114,9 +113,9 @@ export const ItemCardStory = {
     indicator: (args.indicator || undefined) as ItemBorderVariant | undefined,
     header: args.header,
     tags: args.tag ? [{ label: args.tag }] : [],
-    badges: args.badgeLabel
-      ? [{ label: args.badgeLabel, variant: args.badgeVariant as BadgeVariant }]
-      : [],
+    badges: args.badgeLabel ?
+      [{ label: args.badgeLabel, variant: args.badgeVariant as BadgeVariant }] :
+      [],
     text: args.text || undefined,
     error: args.errorMessage || undefined,
     info: args.info || undefined,
@@ -126,9 +125,9 @@ export const ItemCardStory = {
         disabled: args.button1Disabled,
         action: args.button1Disabled ? undefined : action(args.button1Label),
       },
-      ...(args.button2Label
-        ? [{ label: args.button2Label, action: action(args.button2Label) }]
-        : []),
+      ...(args.button2Label ?
+        [{ label: args.button2Label, action: action(args.button2Label) }] :
+        []),
     ],
   }),
 };
@@ -256,7 +255,7 @@ export const HeroCardRadioSelection = () => {
   });
   return cssGrid(
     cssColumn(
-      buildHeroCard( {
+      buildHeroCard({
         indicator: "success",
         radio: makeRadio("oidc"),
         header: "OIDC",
@@ -264,7 +263,7 @@ export const HeroCardRadioSelection = () => {
         text: "Your server authenticates users via OpenID Connect.",
         footer: dom("span", "Installation admin: ", dom("strong", "admin@example.com")),
       }),
-      buildHeroCard( {
+      buildHeroCard({
         indicator: "pending",
         radio: makeRadio("saml"),
         header: "SAML",
@@ -287,7 +286,7 @@ export const ItemCardRadioSelection = () => {
     name: "provider",
   });
   return cssColumn(
-    buildCardList( {
+    buildCardList({
       header: "Choose a provider",
       items: [
         buildItemCard({
@@ -321,7 +320,7 @@ export const CardListStory = {
     collapsible: false,
     initiallyCollapsed: false,
   },
-  render: (args: any) => buildCardList( {
+  render: (args: any) => buildCardList({
     header: args.header,
     collapsible: args.collapsible,
     initiallyCollapsed: args.initiallyCollapsed,
@@ -350,7 +349,7 @@ export const CardListStory = {
 // ---------------------------------------------------------------------------
 
 export const FullSectionActive = () => cssColumn(
-  buildHeroCard( {
+  buildHeroCard({
     indicator: "success",
     header: "OIDC",
     badges: [{ label: "Active", variant: "primary" }],
@@ -364,7 +363,7 @@ export const FullSectionActive = () => cssColumn(
       textButton("Change installation admin", dom.on("click", action("Change admin"))),
     ],
   }),
-  buildCardList( {
+  buildCardList({
     header: "Other authentication methods",
     collapsible: true,
     initiallyCollapsed: true,
@@ -389,7 +388,7 @@ export const FullSectionActive = () => cssColumn(
 );
 
 export const FullSectionNoAuth = () => cssColumn(
-  buildHeroCard( {
+  buildHeroCard({
     indicator: "error",
     header: "No authentication",
     badges: [{ label: "Not recommended", variant: "warning" }],
@@ -400,7 +399,7 @@ export const FullSectionNoAuth = () => cssColumn(
       textButton("Change installation admin", dom.on("click", action("Change admin"))),
     ],
   }),
-  buildCardList( {
+  buildCardList({
     header: "Available methods",
     items: [
       buildItemCard({
