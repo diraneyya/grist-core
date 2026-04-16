@@ -3,7 +3,9 @@
  */
 
 import { arrayToString } from "app/common/arrayToString";
+import { SandboxOption } from "app/common/ConfigAPI";
 import * as marshal from "app/common/marshal";
+import { appSettings } from "app/server/lib/AppSettings";
 import { create } from "app/server/lib/create";
 import { ISandbox, ISandboxCreationOptions, ISandboxCreator } from "app/server/lib/ISandbox";
 import log from "app/server/lib/log";
@@ -15,7 +17,7 @@ import {
   ProcessInfo,
   SubprocessControl,
 } from "app/server/lib/SandboxControl";
-import { getPyodideSettings } from "app/server/lib/SandboxPyodide";
+import { checkPyodideDeno, getPyodideSettings } from "app/server/lib/SandboxPyodide";
 import * as sandboxUtil from "app/server/lib/sandboxUtil";
 import * as shutdown from "app/server/lib/shutdown";
 
@@ -627,6 +629,102 @@ const hasRunsc = checkCommandExists("runsc");
 const hasSandboxExec = checkCommandExists("sandbox-exec");
 
 /**
+ * Returns available sandbox options with their detection status. Checks on the fly, doesn't cache anything.
+ * Note: this doesn't check if those commands actually work, it just checks if they are reachable by us.
+ */
+export function getAvailableSandboxes(): SandboxOption[] {
+  const pyodideCheck = _checkPyodideAvailable();
+  const currentGvisor = checkCommandExists("runsc");
+  const currentMacSandboxExec = checkCommandExists("sandbox-exec");
+  return [
+    {
+      key: "gvisor",
+      label: "gVisor",
+      available: currentGvisor,
+      unavailableReason: currentGvisor ? undefined : "runsc not found",
+      effective: true,
+      functional: undefined, // just a mark that we haven't checked this.
+    },
+    {
+      key: "pyodide",
+      label: "Pyodide",
+      available: true,
+      unavailableReason: pyodideCheck.reason,
+      effective: true,
+      functional: undefined,
+    },
+    {
+      key: "macSandboxExec",
+      label: "macOS Sandbox",
+      available: currentMacSandboxExec,
+      unavailableReason: currentMacSandboxExec ? undefined : "Not macOS or sandbox-exec not found",
+      effective: true,
+      functional: undefined,
+    },
+    {
+      key: "unsandboxed",
+      label: "No Sandbox",
+      available: true,
+      effective: false,
+    },
+  ];
+}
+
+
+function _checkPyodideAvailable(): {available: boolean; reason?: string} {
+  try {
+    const base = getUnpackedAppRoot();
+    const scriptPath = path.resolve(base, "sandbox", "pyodide", "pipe.js");
+    if (!fs.existsSync(scriptPath)) {
+      return {available: false, reason: "Pyodide runtime not installed"};
+    }
+    if (!checkPyodideDeno()) {
+      return {available: false, reason: "Deno binary not found (npm deno package not installed)"};
+    }
+    return {available: true};
+  } catch (e) {
+    return {available: false, reason: String(e)};
+  }
+}
+
+export interface SandboxTestResult {
+  functional: boolean;
+  error?: string;
+}
+
+/**
+ * Test whether a specific sandbox flavor actually works by creating
+ * a sandbox, running a Python call, and shutting it down.
+ */
+export async function testSandboxFlavor(flavor: string): Promise<SandboxTestResult> {
+  let sandbox: ISandbox | undefined;
+  try {
+    const creator = new NSandboxCreator({
+      defaultFlavor: flavor,
+      preferredPythonVersion: "3",
+    });
+    sandbox = creator.create({
+      comment: "test",
+      logCalls: false,
+      logTimes: false,
+      preferredPythonVersion: "3",
+    });
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Sandbox test timed out after 30s")), 30000).unref()
+    );
+    const result = await Promise.race([sandbox.pyCall("get_version"), timeout]);
+    if (typeof result !== "number") {
+      throw new Error(`Expected a number: ${result}`);
+    }
+    return { functional: true };
+  } catch (e) {
+    return { functional: false, error: String(e) };
+  } finally {
+    await sandbox?.shutdown();
+  }
+}
+
+/**
  * Currently for sandboxing use gvisor if available, otherwise
  * try native sandboxing on macs, otherwise fall back on pyodide.
  */
@@ -1174,6 +1272,20 @@ function getCommandArgsFromEnv() {
   };
 }
 
+export function getSandboxFlavor(): string|undefined {
+  return appSettings.section("sandbox").flag("flavor").readString({
+    envVar: "GRIST_SANDBOX_FLAVOR",
+    defaultValue: "unsandboxed",
+  });
+}
+
+export function getSandboxFlavorSource() {
+  return appSettings.section("sandbox").flag("flavor").read({
+    envVar: "GRIST_SANDBOX_FLAVOR"
+  }).describe().source;
+}
+
+
 /**
  * Create a sandbox. The defaultFlavorSpec is a guide to which sandbox
  * to create, based on the desired python version. Examples:
@@ -1188,7 +1300,8 @@ function getCommandArgsFromEnv() {
  * TODO: This machinery can likely be removed now.
  */
 export function createSandbox(defaultFlavorSpec: string, options: ISandboxCreationOptions): ISandbox {
-  const flavors = (process.env.GRIST_SANDBOX_FLAVOR || defaultFlavorSpec).split(",");
+  const sandboxFlavor = getSandboxFlavor();
+  const flavors = (sandboxFlavor || defaultFlavorSpec).split(",");
   const preferredPythonVersion = options.preferredPythonVersion || "3";
   for (const flavorAndVersion of flavors) {
     const parts = flavorAndVersion.trim().split(":", 2);

@@ -2,6 +2,35 @@ import { BaseAPI, IOptions } from "app/common/BaseAPI";
 import { addCurrentOrgToPath } from "app/common/urlUtils";
 
 /**
+ * Describes a single sandbox option and its availability on the system.
+ */
+export interface SandboxOption {
+  // Unique key for the sandbox runner or unsandboxed.
+  key: string;
+  isActive?: boolean;           // Whether this is the currently running sandbox
+  // User-friendly label for the sandbox option.
+  label: string;
+  // Whether the sandbox option is available on the current system.
+  available: boolean;
+  // If not available, an optional reason why it's not available.
+  unavailableReason?: string;
+  effective: boolean;           // Whether it provides real isolation (not just runs code)
+  functional?: boolean;         // Whether sandbox actually works (tested on server)
+  testError?: string;           // Error message if functional test failed
+}
+
+/**
+ * Status of the sandboxing configuration on the server.
+ */
+export interface SandboxingStatus {
+  available: SandboxOption[];
+  recommended?: string;
+  pendingRestart?: string;      // Flavor that will activate after restart
+  isSelectedByEnv: boolean;     // Set via env var — cannot be changed by wizard
+  isConfigured: boolean;        // Explicitly configured (env or DB) — false on fresh install
+}
+
+/**
  * Interface for authentication providers.
  */
 export interface AuthProvider {
@@ -87,6 +116,25 @@ export class ConfigAPI extends BaseAPI {
     url.searchParams.append("provider", provider);
     return await this.requestJson(url.toString(), { method: "GET" });
   }
+
+  /**
+   * Fetches available sandbox options and current sandboxing status.
+   */
+  public async getSandboxingStatus(): Promise<SandboxingStatus> {
+    return await this.requestJson(`${this._url}/api/config/sandboxing`, { method: "GET" });
+  }
+
+  /**
+   * Sets the sandbox flavor (takes effect after restart).
+   */
+  public async setSandboxFlavor(flavor: string): Promise<void> {
+    await this.request(`${this._url}/api/config/sandboxing`, {
+      method: "PATCH",
+      body: JSON.stringify({ flavor }),
+    });
+  }
+
+
 
   private get _url(): string {
     return addCurrentOrgToPath(this._homeUrl);
