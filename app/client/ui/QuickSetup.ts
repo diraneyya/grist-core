@@ -257,9 +257,8 @@ const cssError = styled("div", `
 `);
 
 const cssEnvWarning = styled("div", `
-  background: ${theme.toastWarningBg};
+  border: 2px solid ${theme.toastWarningBg};
   border-radius: 8px;
-  color: white;
   padding: 12px 16px;
   margin-bottom: 16px;
   font-size: ${vars.smallFontSize};
