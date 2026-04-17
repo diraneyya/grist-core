@@ -1299,7 +1299,6 @@ function getCommandArgsFromEnv() {
 export function getConfiguredSandboxFlavor(): string | undefined {
   return appSettings.section("sandbox").flag("flavor").readString({
     envVar: "GRIST_SANDBOX_FLAVOR",
-    defaultValue: "unsandboxed",
   });
 }
 
