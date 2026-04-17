@@ -23,7 +23,7 @@ import { HomeDBManager, UserChange } from "app/gen-server/lib/homedb/HomeDBManag
 import { Housekeeper } from "app/gen-server/lib/Housekeeper";
 import { Usage } from "app/gen-server/lib/Usage";
 import { AccessTokens, IAccessTokens } from "app/server/lib/AccessTokens";
-import { createSandbox } from "app/server/lib/ActiveDoc";
+import { testSandboxFlavor } from "app/server/lib/NSandbox";
 import { attachAppEndpoint } from "app/server/lib/AppEndpoint";
 import { appSettings } from "app/server/lib/AppSettings";
 import { attachEarlyEndpoints } from "app/server/lib/attachEarlyEndpoints";
@@ -1635,41 +1635,19 @@ export class FlexServer implements GristServer {
 
   public async getSandboxInfo(): Promise<SandboxInfo> {
     if (this._sandboxInfo) { return this._sandboxInfo; }
-
-    const flavor = process.env.GRIST_SANDBOX_FLAVOR || "unknown";
-    const info = this._sandboxInfo = {
-      flavor,
-      configured: flavor !== "unsandboxed",
-      functional: false,
-      effective: false,
-      sandboxed: false,
-      lastSuccessfulStep: "none",
-    } as SandboxInfo;
     // Only meaningful on instances that handle documents.
-    if (!this._docManager) { return info; }
-    try {
-      const sandbox = createSandbox({
-        server: this,
-        docId: "test",  // The id is just used in logging - no
-        // document is created or read at this level.
-        preferredPythonVersion: "3",
-      });
-      info.flavor = sandbox.getFlavor();
-      info.configured = info.flavor !== "unsandboxed";
-      info.lastSuccessfulStep = "create";
-      const result = await sandbox.pyCall("get_version");
-      if (typeof result !== "number") {
-        throw new Error(`Expected a number: ${result}`);
-      }
-      info.lastSuccessfulStep = "use";
-      await sandbox.shutdown();
-      info.lastSuccessfulStep = "all";
-      info.functional = true;
-      info.effective = !["skip", "unsandboxed"].includes(info.flavor);
-    } catch (e) {
-      info.error = String(e);
+    if (!this._docManager) {
+      // "unknown" means this server doesn't handle documents, so we didn't test any sandbox.
+      return this._sandboxInfo = {
+        flavor: "unknown",
+        configured: false,
+        functional: false,
+        effective: false,
+        lastSuccessfulStep: "none",
+      } as SandboxInfo;
     }
-    return info;
+    // No flavor argument — uses the deployment's default via create.NSandbox().
+    return this._sandboxInfo = await testSandboxFlavor();
   }
 
   public getInfo(key: string): any {

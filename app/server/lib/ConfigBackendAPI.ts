@@ -14,7 +14,7 @@ import {
   NotConfiguredError,
 } from "app/server/lib/loginSystemHelpers";
 import { LOGIN_SYSTEMS } from "app/server/lib/loginSystems";
-import { getAvailableSandboxes, getSandboxFlavor, getSandboxFlavorSource, testSandboxFlavor } from "app/server/lib/NSandbox";
+import { getAvailableSandboxes, getConfiguredSandboxFlavor, getSandboxFlavorSource, testSandboxFlavor } from "app/server/lib/NSandbox";
 import { sendOkReply, stringParam } from "app/server/lib/requestUtils";
 
 import * as express from "express";
@@ -121,7 +121,7 @@ export class ConfigBackendAPI {
       }
 
       // Don't do anything if the flavor is the same as current, to avoid unnecessary restart.
-      if (getSandboxFlavor() === flavor) {
+      if (getConfiguredSandboxFlavor() === flavor) {
         return sendOkReply(req, res, { msg: "Sandbox flavor is already set to the requested value." });
       }
 
@@ -196,7 +196,7 @@ export class ConfigBackendAPI {
 
     // Use server's sandbox info, it is cached and tested, what the server is actually using know.
     const sandboxInfo = await this._server.getSandboxInfo();
-    const active = sandboxInfo.flavor === "unknown" ? "unsandboxed" : sandboxInfo.flavor;
+    const active = sandboxInfo.flavor;
     const activeOption = available.find(o => o.key === active);
 
     // Mark the currently active sandbox.
@@ -221,7 +221,7 @@ export class ConfigBackendAPI {
     const flavorInDb = dbEnvVars.GRIST_SANDBOX_FLAVOR;
 
     // Read the settings as sandbox creator see it (so what is configurd currently)
-    const flavorCurrentlyConfigured = getSandboxFlavor();
+    const flavorCurrentlyConfigured = getConfiguredSandboxFlavor();
     const currentConfigSource = getSandboxFlavorSource();
     const pendingRestart = flavorInDb && flavorInDb !== flavorCurrentlyConfigured ? flavorInDb : undefined;
 
