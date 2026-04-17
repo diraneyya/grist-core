@@ -14,7 +14,10 @@ import {
   NotConfiguredError,
 } from "app/server/lib/loginSystemHelpers";
 import { LOGIN_SYSTEMS } from "app/server/lib/loginSystems";
-import { getAvailableSandboxes, getConfiguredSandboxFlavor, getSandboxFlavorSource, testSandboxFlavor } from "app/server/lib/NSandbox";
+import {
+  getAvailableSandboxes, getConfiguredSandboxFlavor,
+  getSandboxFlavorSource, testSandboxFlavor,
+} from "app/server/lib/NSandbox";
 import { sendOkReply, stringParam } from "app/server/lib/requestUtils";
 
 import * as express from "express";

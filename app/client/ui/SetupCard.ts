@@ -29,7 +29,10 @@ const testId = makeTestId("test-setup-card-");
  *   badges: [{ label: "Active", variant: "primary" }],
  *   text: "Your server authenticates users via OpenID Connect.",
  *   checkbox: labeledSquareCheckbox(myObs, "Enable feature"),
- *   buttons: [basicButton("Reconfigure", dom.on("click", reconfigure)), basicButton("Deactivate", dom.on("click", deactivate))],
+ *   buttons: [
+ *     basicButton("Reconfigure", dom.on("click", reconfigure)),
+ *     basicButton("Deactivate", dom.on("click", deactivate)),
+ *   ],
  *   footer: [
  *     dom("span", "Installation admin:", dom("strong", "admin@example.com")),
  *     textButton("Change admin", dom.on("click", () => changeAdmin())),

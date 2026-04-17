@@ -4,8 +4,8 @@
 
 import { arrayToString } from "app/common/arrayToString";
 import { SandboxOption } from "app/common/ConfigAPI";
-import { SandboxInfo } from "app/common/SandboxInfo";
 import * as marshal from "app/common/marshal";
+import { SandboxInfo } from "app/common/SandboxInfo";
 import { appSettings } from "app/server/lib/AppSettings";
 import { create } from "app/server/lib/create";
 import { ISandbox, ISandboxCreationOptions, ISandboxCreator } from "app/server/lib/ISandbox";
@@ -635,14 +635,12 @@ const hasSandboxExec = checkCommandExists("sandbox-exec");
  */
 export function getAvailableSandboxes(): SandboxOption[] {
   const pyodideCheck = _checkPyodideAvailable();
-  const currentGvisor = checkCommandExists("runsc");
-  const currentMacSandboxExec = checkCommandExists("sandbox-exec");
   return [
     {
       key: "gvisor",
       label: "gVisor",
-      available: currentGvisor,
-      unavailableReason: currentGvisor ? undefined : "runsc not found",
+      available: hasRunsc,
+      unavailableReason: hasRunsc ? undefined : "runsc not found",
       effective: true,
       functional: undefined, // just a mark that we haven't checked this.
     },
@@ -657,8 +655,8 @@ export function getAvailableSandboxes(): SandboxOption[] {
     {
       key: "macSandboxExec",
       label: "macOS Sandbox",
-      available: currentMacSandboxExec,
-      unavailableReason: currentMacSandboxExec ? undefined : "Not macOS or sandbox-exec not found",
+      available: hasSandboxExec,
+      unavailableReason: hasSandboxExec ? undefined : "Not macOS or sandbox-exec not found",
       effective: true,
       functional: undefined,
     },
@@ -715,9 +713,9 @@ export async function testSandboxFlavor(flavor?: string): Promise<SandboxInfo> {
       logTimes: false,
       preferredPythonVersion: "3",
     };
-    sandbox = flavor
-      ? createConcreteSandbox(flavor, options)
-      : create.NSandbox(options);
+    sandbox = flavor ?
+      createConcreteSandbox(flavor, options) :
+      create.NSandbox(options);
     // The actual flavor may differ from what we asked for, so update it.
     info.flavor = sandbox.getFlavor();
     info.configured = info.flavor !== "unsandboxed";

@@ -23,7 +23,6 @@ import { HomeDBManager, UserChange } from "app/gen-server/lib/homedb/HomeDBManag
 import { Housekeeper } from "app/gen-server/lib/Housekeeper";
 import { Usage } from "app/gen-server/lib/Usage";
 import { AccessTokens, IAccessTokens } from "app/server/lib/AccessTokens";
-import { testSandboxFlavor } from "app/server/lib/NSandbox";
 import { attachAppEndpoint } from "app/server/lib/AppEndpoint";
 import { appSettings } from "app/server/lib/AppSettings";
 import { attachEarlyEndpoints } from "app/server/lib/attachEarlyEndpoints";
@@ -68,6 +67,7 @@ import { EmitNotifier, INotifier } from "app/server/lib/INotifier";
 import { InstallAdmin } from "app/server/lib/InstallAdmin";
 import log, { logAsJson } from "app/server/lib/log";
 import { disableCache, noop } from "app/server/lib/middleware";
+import { testSandboxFlavor } from "app/server/lib/NSandbox";
 import { OAuth2Clients } from "app/server/lib/OAuth2Clients";
 import { IPermitStore } from "app/server/lib/Permit";
 import { getAppPathTo, getAppRoot, getInstanceRoot, getUnpackedAppRoot } from "app/server/lib/places";
