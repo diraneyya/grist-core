@@ -80,21 +80,23 @@ describe("AdminPanelServer", function() {
 
     it("should persist the URL via the API", async function() {
       // We can't actually click "Restart Grist" in the test since it would
-      // restart and reload. Instead, verify the save endpoint persists
-      // directly.
-      const result = await driver.executeScript<any>(`
-        return fetch('/api/config/server', {
-          method: 'POST',
+      // restart and reload. Instead, verify that PATCH /api/install/prefs
+      // persists to activation prefs. GET /api/config/server can't be used
+      // for read-back here because it reads the memoized gristSettings
+      // value, which only refreshes on restart.
+      const status = await driver.executeScript<number>(`
+        return fetch('/api/install/prefs', {
+          method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ APP_HOME_URL: 'http://test.example.com' }),
-        }).then(r => r.json());
+          body: JSON.stringify({ envVars: { APP_HOME_URL: 'http://test.example.com' } }),
+        }).then(r => r.status);
       `);
-      assert.deepEqual(result, { msg: "ok" });
+      assert.equal(status, 200);
 
-      const getResult = await driver.executeScript<any>(
-        "return fetch('/api/config/server').then(r => r.json())",
+      const prefs = await driver.executeScript<any>(
+        "return fetch('/api/install/prefs').then(r => r.json())",
       );
-      assert.equal(getResult.APP_HOME_URL, "http://test.example.com");
+      assert.equal(prefs.envVars?.APP_HOME_URL, "http://test.example.com");
     });
   });
 
@@ -122,12 +124,15 @@ describe("AdminPanelServer", function() {
     });
 
     describe("getting through without changes", function() {
+      // APP_HOME_URL is not set in this test env, so "Leave automatic"
+      // produces no change and the Continue button offers Continue (not
+      // Apply). When APP_HOME_URL is set, the same choice would be dirty
+      // and would clear the URL via PATCH /install/prefs instead.
       it("should allow leaving Base URL automatic", async function() {
         const skipUrl = await driver.findContentWait("button", /Leave automatic/, 3000);
         await skipUrl.click();
         await driver.sleep(300);
 
-        // Should show "Automatic" confirmed row.
         assert.isTrue(await driver.findContent(".test-base-url-confirmed-row", /Automatic/).isDisplayed());
       });
 
@@ -136,7 +141,6 @@ describe("AdminPanelServer", function() {
         await confirmEdition.click();
         await driver.sleep(300);
 
-        // Should show "Confirmed" row.
         assert.isTrue(await driver.findContent(".test-edition-confirmed-row", /Confirmed/).isDisplayed());
       });
 

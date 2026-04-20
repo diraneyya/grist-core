@@ -20,7 +20,6 @@ export interface AuthProvider {
 
 export interface ServerConfig {
   APP_HOME_URL: string | null;
-  isManuallySet: boolean;
 }
 
 /**
@@ -98,16 +97,6 @@ export class ConfigAPI extends BaseAPI {
    */
   public async getServerConfig(): Promise<ServerConfig> {
     return await this.requestJson(`${this._url}/api/config/server`, { method: "GET" });
-  }
-
-  /**
-   * Saves the server configuration (APP_HOME_URL).
-   */
-  public async saveServerConfig(config: { APP_HOME_URL: string | null }): Promise<void> {
-    await this.request(`${this._url}/api/config/server`, {
-      method: "POST",
-      body: JSON.stringify(config),
-    });
   }
 
   private get _url(): string {

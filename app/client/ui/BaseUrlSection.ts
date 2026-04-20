@@ -14,6 +14,7 @@ import { basicButton, primaryButton } from "app/client/ui2018/buttons";
 import { theme, vars } from "app/client/ui2018/cssVars";
 import { icon } from "app/client/ui2018/icons";
 import { ConfigAPI, ServerConfig } from "app/common/ConfigAPI";
+import { InstallAPIImpl } from "app/common/InstallAPI";
 
 import { Computed, Disposable, dom, DomContents, DomElementArg, input, makeTestId,
   Observable, styled } from "grainjs";
@@ -28,13 +29,11 @@ interface BaseUrlSectionOptions {
 }
 
 export class BaseUrlSection extends Disposable {
-  /** Mock panel content: clear APP_HOME_URL via a direct API call. */
+  /** Mock panel content: clear APP_HOME_URL via the install prefs endpoint. */
   public static buildMockButtons(): DomElementArg[] {
     const clear = async () => {
-      await fetch("/api/config/server", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ APP_HOME_URL: null }),
+      await new InstallAPIImpl(getHomeUrl()).updateInstallPrefs({
+        envVars: { APP_HOME_URL: null },
       });
       window.location.reload();
     };
@@ -59,10 +58,15 @@ export class BaseUrlSection extends Disposable {
   public readonly needsRestart = true;
 
   private _detectedUrl = typeof window !== "undefined" ? window.location.origin : "";
-  // What the server currently has. Updated on load and after each successful apply.
+  // What the server currently has. Updated on load and after each successful
+  // apply. An empty string means the server has no APP_HOME_URL set, so the
+  // client will auto-detect from window.location.
   private _serverUrl = Observable.create<string>(this, "");
+  // True while the server has a non-empty APP_HOME_URL — i.e. the URL is
+  // pinned rather than auto-detected. Derived from `_serverUrl` so that it
+  // stays consistent across `_load`, `_save`, `_clear`, and `markApplied`.
+  private _isManuallySet = Computed.create<boolean>(this, use => Boolean(use(this._serverUrl)));
   private _editedUrl = Observable.create<string>(this, "");
-  private _isManuallySet = Observable.create<boolean>(this, false);
   private _status = Observable.create<UrlStatus>(this, "loading");
   private _error = Observable.create<string>(this, "");
   private _urlConfirmed = Observable.create<boolean>(this, false);
@@ -73,6 +77,7 @@ export class BaseUrlSection extends Disposable {
   private _testError = Observable.create<string>(this, "");
 
   private _configAPI = new ConfigAPI(getHomeUrl());
+  private _installAPI = new InstallAPIImpl(getHomeUrl());
 
   constructor(_options: BaseUrlSectionOptions = {}) {
     super();
@@ -308,7 +313,6 @@ export class BaseUrlSection extends Disposable {
       if (this.isDisposed()) { return; }
       this._serverUrl.set(config.APP_HOME_URL || "");
       this._editedUrl.set(config.APP_HOME_URL || this._detectedUrl);
-      this._isManuallySet.set(config.isManuallySet);
       this._status.set("loaded");
     } catch (err) {
       // Silently continue on error (endpoint may not exist during early startup).
@@ -322,10 +326,9 @@ export class BaseUrlSection extends Disposable {
     this._status.set("saving");
     this._error.set("");
     try {
-      await this._configAPI.saveServerConfig({ APP_HOME_URL: null });
+      await this._installAPI.updateInstallPrefs({ envVars: { APP_HOME_URL: null } });
       if (this.isDisposed()) { return; }
       this._serverUrl.set("");
-      this._isManuallySet.set(false);
       this._editedUrl.set(this._detectedUrl);
       this._status.set("loaded");
     } catch (err) {
@@ -343,10 +346,9 @@ export class BaseUrlSection extends Disposable {
     this._status.set("saving");
     this._error.set("");
     try {
-      await this._configAPI.saveServerConfig({ APP_HOME_URL: url });
+      await this._installAPI.updateInstallPrefs({ envVars: { APP_HOME_URL: url } });
       if (this.isDisposed()) { return; }
       this._serverUrl.set(url);
-      this._isManuallySet.set(true);
       this._status.set("loaded");
     } catch (err) {
       if (this.isDisposed()) { return; }
