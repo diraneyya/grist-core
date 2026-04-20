@@ -191,7 +191,7 @@ export class ConfigBackendAPI {
         o.testError = result!.error;
       });
 
-    // Wait for all tests to complete, non should fail.
+    // Wait for all tests to complete, none should fail.
     await Promise.all(testPromises);
 
     // Mark unsandboxed as always functional (no test needed).

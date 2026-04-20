@@ -29,7 +29,7 @@ const testId = makeTestId("test-setup-wizard-");
  *       label: "Auth",
  *       plain: true,
  *       buildDom: (activeStep) => dom("div",
- *         dom.create(HeroCard, { ... }),
+ *         buildHeroCard(HeroCard, { ... }),
  *         bigPrimaryButton("Continue", dom.on("click", () => activeStep.set(2))),
  *       ),
  *     },

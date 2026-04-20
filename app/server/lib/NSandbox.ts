@@ -630,7 +630,7 @@ const hasRunsc = checkCommandExists("runsc");
 const hasSandboxExec = checkCommandExists("sandbox-exec");
 
 /**
- * Returns available sandbox options with their detection status. Checks on the fly, doesn't cache anything.
+ * Returns available sandbox options with their detection status.
  * Note: this doesn't check if those commands actually work, it just checks if they are reachable by us.
  */
 export function getAvailableSandboxes(): SandboxOption[] {
@@ -743,7 +743,14 @@ export async function testSandboxFlavor(flavor?: string): Promise<SandboxInfo> {
     info.error = String(e);
   } finally {
     // If the sandbox is still running (e.g. after an error), make sure we stop it.
-    await sandbox?.shutdown();
+    if (sandbox) {
+      try {
+        await sandbox.shutdown();
+      } catch (e) {
+        const shutdownError = `Sandbox shutdown failed: ${String(e)}`;
+        info.error = info.error ? `${info.error}; ${shutdownError}` : shutdownError;
+      }
+    }
   }
   return info;
 }
